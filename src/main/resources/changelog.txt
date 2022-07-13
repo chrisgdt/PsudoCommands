@@ -7,7 +7,9 @@
     If such an "at" or "as" is not specified, the sender of the command is taken.
 
     To make someone run the command after psudo, this should be psudoas, not psudo, and this person must be selected
-    in the last "as" of execute command. This does not work for mobs, so keep psudo or psudouuid.
+    in the last "as" of execute command. This does not work if the selected entity has not the permission to
+    run the commande or if it is a mobs. In general, it is better to keep psudo or psudouuid if the plugin command
+    supports UUIDs.
 
     Don't forget to use psudouuid with mobs to replace the selector by the uuid and not a poor "pig", even with @s !
 
