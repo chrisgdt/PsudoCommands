@@ -47,14 +47,10 @@ public class PsudoCommandExecutor implements CommandExecutor, TabCompleter {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        return onCommand(sender, sender, null, PsudoCommandType.getType(command), args);
+        return onCommand(sender, sender, PsudoCommodoreExtension.getCommandWrapperListenerObject(sender), PsudoCommandType.getType(command), args);
     }
 
     boolean onCommand(CommandSender baseSender, CommandSender sender, Object commandWrapperListener, PsudoCommandType type, String[] args) {
-        if (type == null) {
-            return false;
-        }
-
         if ((type != PsudoCommandType.PSUDO_UUID || !baseSender.hasPermission("psudocommand.psudouuid"))
                 && (type != PsudoCommandType.PSUDO || !baseSender.hasPermission("psudocommand.psudo"))
                 && (type != PsudoCommandType.PSUDO_AS || !baseSender.hasPermission("psudocommand.psudoas"))
@@ -98,23 +94,23 @@ public class PsudoCommandExecutor implements CommandExecutor, TabCompleter {
                             return false;
                         }
 
-                        Location origin, arv;
-                        if (commandWrapperListener != null) {
-                            origin = PsudoCommodoreExtension.getBukkitLocation(commandWrapperListener);
-                        } else {
-                            origin = CommandUtils.getLocation(sender);
-                        }
+                        Location arv;
                         if (args[i].startsWith("^")) {
-                            if(!args[i+1].startsWith("^") || !args[i+2].startsWith("^")) {
+                            if (!args[i+1].startsWith("^") || !args[i+2].startsWith("^")) {
                                 baseSender.sendMessage(ChatColor.RED + "Cannot mix world & local coordinates (everything must either use ^ or not)");
                                 return false;
                             }
-                            arv = CommandUtils.getLocalCoord(args[i], args[i+1], args[i+2], origin);
-                        } else {
-                            if(args[i+1].startsWith("^") || args[i+2].startsWith("^")) {
+                            arv = PsudoCommodoreExtension.getLocalCoord(CommandUtils.getCoordinate(args[i]),
+                                    CommandUtils.getCoordinate(args[i+1]),
+                                    CommandUtils.getCoordinate(args[i+2]),
+                                    commandWrapperListener);
+
+                        } else { // if args[i].startWith("~")
+                            if (args[i+1].startsWith("^") || args[i+2].startsWith("^")) {
                                 baseSender.sendMessage(ChatColor.RED + "Cannot mix world & local coordinates (everything must either use ^ or not)");
                                 return false;
                             }
+                            Location origin = PsudoCommodoreExtension.getBukkitLocation(commandWrapperListener);
                             arv = CommandUtils.getRelativeCoord(args[i], args[i+1], args[i+2], origin);
                         }
                         cmd.append(arv.getX()).append(" ").append(arv.getY()).append(" ").append(arv.getZ());
@@ -123,11 +119,7 @@ public class PsudoCommandExecutor implements CommandExecutor, TabCompleter {
                     } else if (CommandUtils.isSelector(args[i])) {
                         List<Entity> selectedEntities;
                         try {
-                            if (commandWrapperListener != null) {
-                                selectedEntities = PsudoCommodoreExtension.selectEntities(commandWrapperListener, args[i]); // separate "at" and "as" with wrapper
-                            } else {
-                                selectedEntities = Bukkit.selectEntities(sender, args[i]); // sender "at" and "as" are merged
-                            }
+                            selectedEntities = PsudoCommodoreExtension.selectEntities(commandWrapperListener, args[i]); // separate "at" and "as" with wrapper
                         } catch (IllegalArgumentException e) {
                             baseSender.sendMessage(ChatColor.RED + e.getMessage());
                             baseSender.sendMessage(ChatColor.RED + e.getCause().getMessage());

@@ -1,15 +1,12 @@
 package me.zombie_striker.psudocommands;
 
-import org.bukkit.Bukkit;
 import org.bukkit.Location;
-import org.bukkit.command.BlockCommandSender;
-import org.bukkit.command.CommandSender;
-import org.bukkit.entity.Entity;
-import org.bukkit.util.Vector;
 
 import java.util.regex.Pattern;
 
 public class CommandUtils {
+
+	private static final Pattern IS_DECIMAL = Pattern.compile("[+-]?(\\d+(\\.\\d*)?|\\.\\d+)");
 
 	public static boolean isSelector(String arg) {
 		return Pattern.matches("@[aerps](\\[.*\\])?", arg);
@@ -96,8 +93,8 @@ public class CommandUtils {
 	/**
 	 * Returns true if str is a relative, local or world coordinate.
 	 * E.g. "^-2" or "~1.45" or "-2.4"
-	 * If firstCoord is true, str has to be only relative or local, with "~" or "^",
-	 * not only number. Easier to detect the first coordinate of the three.
+	 * If firstCoord is true, str has to be relative or local, with "~" or "^"
+	 * to solve any ambiguity, easier to detect the first coordinate of the three.
 	 * If it is false, str can be a double as string.
 	 *
 	 * @param str        The tested coordinate
@@ -125,67 +122,13 @@ public class CommandUtils {
 	 */
 	public static Location getRelativeCoord(String x, String y, String z, Location origin) {
 		Location arrival = origin.clone();
-		if(x.startsWith("~")) {
-			arrival.setX(arrival.getX() + getCoordinate(x));
-		} else {
-			arrival.setX(Double.parseDouble(x));
-		}
-
-		if(y.startsWith("~")) {
-			arrival.setY(arrival.getY() + getCoordinate(y));
-		} else {
-			arrival.setY(Double.parseDouble(y));
-		}
-
-		if(z.startsWith("~")) {
-			arrival.setZ(arrival.getZ() + getCoordinate(z));
-		} else {
-			arrival.setZ(Double.parseDouble(z));
-		}
+		arrival.setX(x.startsWith("~") ? arrival.getX() + getCoordinate(x) : Double.parseDouble(x));
+		arrival.setY(y.startsWith("~") ? arrival.getY() + getCoordinate(y) : Double.parseDouble(y));
+		arrival.setZ(z.startsWith("~") ? arrival.getZ() + getCoordinate(z) : Double.parseDouble(z));
 		return arrival;
 	}
 
-	/**
-	 * Parse string coordinates as double coordinates.
-	 * Each string starts with "^".
-	 * Precondition : x, y and z verify isRelativeCoord.
-	 *
-	 * @param x      First coordinate
-	 * @param y      Second coordinate
-	 * @param z      Third coordinate
-	 * @param origin The origin location for local
-	 * @return The arrival location
-	 */
-	public static Location getLocalCoord(String x, String y, String z, Location origin) {
-		Location arrival = origin.clone();
-
-		Vector dirX = new Location(arrival.getWorld(), 0, 0, 0, Location.normalizeYaw(arrival.getYaw()-90),
-				arrival.getPitch()).getDirection().normalize();
-		Vector dirY = new Location(arrival.getWorld(), 0, 0, 0, arrival.getYaw(),
-				arrival.getPitch()-90).getDirection().normalize();
-		Vector dirZ = arrival.getDirection().normalize();
-
-		return arrival.add(dirX.multiply(getCoordinate(x)))
-				      .add(dirY.multiply(getCoordinate(y)))
-				      .add(dirZ.multiply(getCoordinate(z)));
-	}
-
-	/**
-	 * Get the location of the sender
-	 * @param sender The command sender.
-	 * @return The location of the sender, the default world's location if it's the Console.
-	 */
-	public static Location getLocation(CommandSender sender) {
-		if (sender instanceof Entity) {
-			return ((Entity) sender).getLocation();
-		} else if (sender instanceof BlockCommandSender) {
-			return ((BlockCommandSender) sender).getBlock().getLocation().add(.5, 0, .5); // Center of block
-		} else {
-			return Bukkit.getWorlds().get(0).getSpawnLocation();
-		}
-	}
-
-	private static double getCoordinate(String c) {
+	public static double getCoordinate(String c) {
 		// c is like ^3 or ~-1.2 or 489.1
 		if (Character.isDigit(c.charAt(0))) {
 			return Double.parseDouble(c);
@@ -195,11 +138,6 @@ public class CommandUtils {
 	}
 
 	private static boolean isDouble(String str) {
-		try {
-			Double.parseDouble(str);
-		} catch (NumberFormatException e) {
-			return false;
-		}
-		return true;
+		return IS_DECIMAL.matcher(str).matches();
 	}
 }

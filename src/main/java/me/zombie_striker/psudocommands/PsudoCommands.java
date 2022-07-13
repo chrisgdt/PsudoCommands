@@ -69,6 +69,9 @@ public class PsudoCommands extends JavaPlugin {
 								Object source = context.getSource();
 								CommandSender baseSender = PsudoCommodoreExtension.getBukkitBasedSender(source);
 								CommandSender sender = PsudoCommodoreExtension.getBukkitSender(source);
+								if (sender == null) {
+									sender = baseSender;
+								}
 								boolean result = executor.onCommand(baseSender, sender, source, commandType, args);
 								return result ? SINGLE_SUCCESS : 0;
 							})
