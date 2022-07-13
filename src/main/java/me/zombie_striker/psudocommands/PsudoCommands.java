@@ -10,6 +10,8 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.util.List;
+
 import static com.mojang.brigadier.Command.SINGLE_SUCCESS;
 
 public class PsudoCommands extends JavaPlugin {
@@ -39,11 +41,32 @@ public class PsudoCommands extends JavaPlugin {
 	private static void registerCommand(Commodore commodore, PsudoCommandExecutor executor, PluginCommand command, PsudoCommandExecutor.PsudoCommandType commandType) {
 		commodore.register(LiteralArgumentBuilder.literal(command.getName()) // don't put "command" as first argument to not call the CraftBukkit SuggestionProvider
 				.then(
+						// "arguments" is a greedy string, i.e. get everything, then parsed as getString
 						RequiredArgumentBuilder.argument("arguments", StringArgumentType.greedyString())
-								.suggests((ctx, builder) -> builder.buildFuture())
-								.executes(cs -> {
-									String[] args = StringArgumentType.getString(cs, "arguments").split(" ");
-									Object source = cs.getSource();
+								.suggests((ctx, builder) -> {
+									CommandSender baseSender = PsudoCommodoreExtension.getBukkitBasedSender(ctx.getSource());
+									String[] args = builder.getRemaining().split(" ", -1); // -1 to keep trailing space
+
+									List<String> completion = executor.onTabComplete(baseSender, command, null, args);
+
+									if (completion != null) {
+										// offset the builder to the next argument to not be stuck at the beginning
+										int offset = 0;
+										for (int i = 0; i < args.length - 1; i += 1) {
+											offset += args[i].length() + 1; // +1 for the space deleted with split
+										}
+										builder = builder.createOffset(builder.getStart() + offset);
+
+										// no need to check if the completion string starts with the remaining, already filter in onTabComplete
+										for (String str : completion) {
+											builder.suggest(str);
+										}
+									}
+									return builder.buildFuture();
+								})
+								.executes(ctx -> {
+									String[] args = StringArgumentType.getString(ctx, "arguments").split(" ");
+									Object source = ctx.getSource();
 									CommandSender baseSender = PsudoCommodoreExtension.getBukkitBasedSender(source);
 									CommandSender sender = PsudoCommodoreExtension.getBukkitSender(source);
 									boolean result = executor.onCommand(baseSender, sender, commandType, args);

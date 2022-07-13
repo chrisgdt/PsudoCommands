@@ -6,9 +6,9 @@ import java.lang.reflect.Method;
 import java.util.Objects;
 
 public class PsudoCommodoreExtension {
-    private static final Method GET_ENTITY_METHOD;
-    private static final Method GET_BUKKIT_SENDER_METHOD;
-    private static final Method GET_BUKKIT_BASED_SENDER_METHOD;
+    private static final Method GET_ENTITY_METHOD,
+                                GET_BUKKIT_SENDER_METHOD,
+                                GET_BUKKIT_BASED_SENDER_METHOD;
 
     public static CommandSender getBukkitSender(Object commandWrapperListener) {
         Objects.requireNonNull(commandWrapperListener, "commandWrapperListener");

@@ -67,7 +67,7 @@ public class PsudoCommandExecutor implements CommandExecutor, TabCompleter {
             return false;
         }
 
-        // Remove every spaces between tags inside a selector
+        // Remove every space between tags inside a selector
         for (int i = 0; i < args.length; i++) {
             if (CommandUtils.isSelectorStartWithTag(args[i])) {
                 args = CommandUtils.combineArgs(args, i, "", "]", "");

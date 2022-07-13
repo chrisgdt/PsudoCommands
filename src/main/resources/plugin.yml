@@ -4,8 +4,8 @@ name: PsudoCommand
 api-version: 1.16
 authors:
   - Zombie_Striker (original author)
-  - cricri_21 (lot of fixes)
-  - Kamesuta (execute feature)
+  - cricri_21 (lot of fixes and completion)
+  - Kamesuta (base of execute feature)
 commands:
   psudo:
     description: Issues another command, as the console, supporting the base-minecraft @ function.

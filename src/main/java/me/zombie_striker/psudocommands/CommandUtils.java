@@ -25,23 +25,23 @@ public class CommandUtils {
 
 	/**
 	 * Modify the given String array to concat some arguments in one according
-	 * to the begin and the end. For example, if : begin and end are double
-	 * quote " and sep is a space space :
+	 * to the beginning and the end. For example, if : begin and end are double
+	 * quote " and sep is a space :
 	 * split is ["first", "second", "\"combine", "args", "in", "one\"", "last"]
 	 * index is 2
 	 * -> returns ["first", "second", "combine args in one", "last"]
 	 * If index isn't 2, nothing will happen.
 	 *
 	 *
-	 * Begin (resp. end) must be at the begining (resp. the end) of their
-	 * argument if they represent the begining (resp. the end) of the new args.
+	 * Begin (resp. end) must be at the beginning (resp. the end) of their
+	 * argument if they represent the beginning (resp. the end) of the new args.
 	 * They are also removed.
 	 * @param args The initial array.
 	 * @param index The index of the start.
-	 * @param begin String that represents the begin of the concat argument.
+	 * @param begin String that represents the beginning of the concat argument.
 	 * @param end String that represents the end of the concat argument.
 	 * @param sep The separator, often a space.
-	 * @return A new String array or the same reference than the given array.
+	 * @return A new String array or the same reference as the given array.
 	 */
 	public static String[] combineArgs(String[] args, int index, String begin, String end, String sep) {
 		if (index >= args.length) {
@@ -53,7 +53,7 @@ public class CommandUtils {
 			int endLength = end.length();
 			boolean onlyBegin = prevArg.equals(begin);
 			if (onlyBegin && index == args.length-1) {
-				// The index is the last and text only the begin string... What's your problem ??
+				// The index is the last and text only the beginning string... What's your problem ??
 				args[index] = "";
 				return args;
 			} else if (!onlyBegin && prevArg.endsWith(end)) {
@@ -114,7 +114,7 @@ public class CommandUtils {
 
 	/**
 	 * Parse string coordinates as double coordinates.
-	 * Each string is a number or starts with "~".
+	 * Each string is a number, or starts with "~".
 	 * Precondition : x, y and z verify isRelativeCoord.
 	 *
 	 * @param x      First coordinate
