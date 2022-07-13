@@ -1,5 +1,6 @@
 package me.zombie_striker.psudocommands;
 
+import me.lucko.commodore.PsudoCommodoreExtension;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
@@ -46,10 +47,10 @@ public class PsudoCommandExecutor implements CommandExecutor, TabCompleter {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        return onCommand(sender, sender, PsudoCommandType.getType(command), args);
+        return onCommand(sender, sender, null, PsudoCommandType.getType(command), args);
     }
 
-    boolean onCommand(CommandSender baseSender, CommandSender sender, PsudoCommandType type, String[] args) {
+    boolean onCommand(CommandSender baseSender, CommandSender sender, Object commandWrapperListener, PsudoCommandType type, String[] args) {
         if (type == null) {
             return false;
         }
@@ -96,9 +97,14 @@ public class PsudoCommandExecutor implements CommandExecutor, TabCompleter {
                             baseSender.sendMessage(ChatColor.RED + "Please provide three coordinates after \"" + args[i] + "\"");
                             return false;
                         }
-                        Location origin = CommandUtils.getLocation(sender); // sender "at" and "as" are merged
-                        Location arv;
-                        if(args[i].startsWith("^")) {
+
+                        Location origin, arv;
+                        if (commandWrapperListener != null) {
+                            origin = PsudoCommodoreExtension.getBukkitLocation(commandWrapperListener);
+                        } else {
+                            origin = CommandUtils.getLocation(sender);
+                        }
+                        if (args[i].startsWith("^")) {
                             if(!args[i+1].startsWith("^") || !args[i+2].startsWith("^")) {
                                 baseSender.sendMessage(ChatColor.RED + "Cannot mix world & local coordinates (everything must either use ^ or not)");
                                 return false;
@@ -117,7 +123,11 @@ public class PsudoCommandExecutor implements CommandExecutor, TabCompleter {
                     } else if (CommandUtils.isSelector(args[i])) {
                         List<Entity> selectedEntities;
                         try {
-                            selectedEntities = Bukkit.selectEntities(sender, args[i]); // sender "at" and "as" are merged
+                            if (commandWrapperListener != null) {
+                                selectedEntities = PsudoCommodoreExtension.selectEntities(commandWrapperListener, args[i]); // separate "at" and "as" with wrapper
+                            } else {
+                                selectedEntities = Bukkit.selectEntities(sender, args[i]); // sender "at" and "as" are merged
+                            }
                         } catch (IllegalArgumentException e) {
                             baseSender.sendMessage(ChatColor.RED + e.getMessage());
                             baseSender.sendMessage(ChatColor.RED + e.getCause().getMessage());

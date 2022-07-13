@@ -1,14 +1,17 @@
 1.0.29
     Support execute vanilla command with psudo. The old behavior with only psudo still works, except for psudoas.
-    The equivalent to "psudoas <target> <command>" is now "execute as <target> run psudoas <command>".
+    The equivalent to "psudoas <target> <command>" is now "execute as <target> at @s run psudoas <command>".
 
-    With execute, selectors (e.g. @s) and coordinates (e.g. for distance=) from any psudo depends now on the
-    last "as" of the execute command. To make someone run the command after psudo, this should be psudoas and
-    not psudo and this person must be selected in the last "as" of execute command.
+    With execute, selector @s now depends on the last "as" of the execute command, like in vanilla. For coordinates,
+    (e.g. ~ ~ ~ or [distance=]), it depends on the last "at" of the execute command, also the same as vanilla behavior.
+    If such an "at" or "as" is not specified, the sender of the command is taken.
+
+    To make someone run the command after psudo, this should be psudoas, not psudo, and this person must be selected
+    in the last "as" of execute command. This does not work for mobs, so keep psudo or psudouuid.
 
     Don't forget to use psudouuid with mobs to replace the selector by the uuid and not a poor "pig", even with @s !
 
-    Based on the other fork https://github.com/Numa-Lab/PsudoCommands
+    Partially based on the other fork https://github.com/Numa-Lab/PsudoCommands
 
 1.0.28
     Drop support for 1.12- and 1.12- parameters.
