@@ -21,8 +21,8 @@ public class PsudoCommands extends JavaPlugin {
 		PsudoCommandExecutor executor = new PsudoCommandExecutor(this);
 
 		PluginCommand[] commands = new PluginCommand[]{ getCommand("psudo"), getCommand("psudouuid"),
-													    getCommand("psudoas"), getCommand("psudoasraw") };
-
+													    getCommand("psudoas"), getCommand("psudoasraw"),
+		                                                getCommand("psudoasop") };
 		for (PluginCommand command : commands) {
 			command.setExecutor(executor);
 			command.setTabCompleter(executor);

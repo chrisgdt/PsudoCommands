@@ -22,9 +22,10 @@ public class PsudoCommandExecutor implements CommandExecutor, TabCompleter {
 
     public enum PsudoCommandType {
         PSUDO,
+        PSUDO_UUID,
         PSUDO_AS,
         PSUDO_AS_RAW,
-        PSUDO_UUID;
+        PSUDO_AS_OP;
 
         public boolean useBaseSender() {
             return this == PSUDO || this == PSUDO_UUID;
@@ -40,6 +41,8 @@ public class PsudoCommandExecutor implements CommandExecutor, TabCompleter {
                     return PsudoCommandType.PSUDO_AS_RAW;
                 case "psudouuid":
                     return PsudoCommandType.PSUDO_UUID;
+                case "psudoasop":
+                    return PSUDO_AS_OP;
             }
             return null;
         }
@@ -51,14 +54,6 @@ public class PsudoCommandExecutor implements CommandExecutor, TabCompleter {
     }
 
     boolean onCommand(CommandSender baseSender, CommandSender sender, Object commandWrapperListener, PsudoCommandType type, String[] args) {
-        if ((type != PsudoCommandType.PSUDO_UUID || !baseSender.hasPermission("psudocommand.psudouuid"))
-                && (type != PsudoCommandType.PSUDO || !baseSender.hasPermission("psudocommand.psudo"))
-                && (type != PsudoCommandType.PSUDO_AS || !baseSender.hasPermission("psudocommand.psudoas"))
-                && (type != PsudoCommandType.PSUDO_AS_RAW || !baseSender.hasPermission("psudocommand.psudoasraw"))) {
-            baseSender.sendMessage(ChatColor.GRAY + "[PsudoCommands] You don't have permission to use this command.");
-            return false;
-        }
-
         if (args.length <= 0) {
             baseSender.sendMessage(ChatColor.GRAY + "[PsudoCommands] Please provide a valid command.");
             return false;
@@ -170,19 +165,20 @@ public class PsudoCommandExecutor implements CommandExecutor, TabCompleter {
         }
         boolean atleastOne = false;
         for (StringBuilder cmd : cmds) {
-            if (Bukkit.dispatchCommand(type.useBaseSender() ? baseSender : sender, cmd.toString()))
-                atleastOne = true;
+            if (type != PsudoCommandType.PSUDO_AS_OP) {
+                if (Bukkit.dispatchCommand(type.useBaseSender() ? baseSender : sender, cmd.toString()))
+                    atleastOne = true;
+            } else {
+                if (PsudoCommodoreExtension.dispatchCommandIgnorePerms(sender, cmd.toString()))
+                    atleastOne = true;
+            }
         }
         return atleastOne;
     }
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-        PsudoCommandType type = PsudoCommandType.getType(command);
-        if ((type == PsudoCommandType.PSUDO_UUID && sender.hasPermission("psudocommand.psudouuid"))
-                || (type == PsudoCommandType.PSUDO && sender.hasPermission("psudocommand.psudo"))
-                || (type == PsudoCommandType.PSUDO_AS && sender.hasPermission("psudocommand.psudoas"))
-                || (type == PsudoCommandType.PSUDO_AS_RAW && sender.hasPermission("psudocommand.psudoasraw"))) {
+        if (command.testPermissionSilent(sender)) {
             List<String> completion = new ArrayList<>();
             int remove = 1;
             if (args.length == remove) {

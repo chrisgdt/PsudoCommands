@@ -8,21 +8,26 @@ authors:
   - Kamesuta (base of execute feature)
 commands:
   psudo:
-    description: Issues another command, as the console, supporting the base-minecraft @ function.
+    description: Issues another command as the sender of this, supporting execute vanilla command before and the base-minecraft @ function.
     permission: psudocommand.psudo
   psudouuid:
-    description: Issues another command, as the player specified, supporting the base-minecraft @ function, except it returns the entities uuid.
+    description: Issues another command as the sender of this, supporting execute vanilla command before and the base-minecraft @ function, except it returns the entities uuid.
     permission: psudocommand.psudouuid
   psudoas:
-    description: Issues another command, as the player specified, supporting the base-minecraft @ function.
+    description: Executed with 'execute as <target> run psudouas <command>', issues the next command as the target specified, supporting the base-minecraft @ function.
     permission: psudocommand.psudoas
   psudoasraw:
-    description: Issues another command, as the player specified, ignoring base-minecraft @ function.
+    description: Executed with 'execute as <target> run psudouas <command>', issues the next command as the target specified, ignoring the base-minecraft @ function.
     permission: psudocommand.psudoasraw
+  psudoasop:
+    description: Executed with 'execute as <target> run psudouas <command>', issues the next command as the target specified and ignore the permissions (the target does NOT get op), supporting the base-minecraft @ function.
+    permission: psudocommand.psudoasop
 permissions:
    psudocommand.*:
      description: Gives access to all Psudo commands
      children:
        psudocommand.psudo: true
-       psudocommand.psudoas: true
        psudocommand.psudouuid: true
+       psudocommand.psudoas: true
+       psudocommand.psudoasraw: true
+       psudocommand.psudoasop: true

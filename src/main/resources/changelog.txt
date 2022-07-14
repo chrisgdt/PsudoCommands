@@ -11,12 +11,18 @@
     run the commande or if it is a mobs. In general, it is better to keep psudo or psudouuid if the plugin command
     supports UUIDs.
 
+    New command : psudoasop. Despite the name, this does not give operator to the player. The behavior is the same as
+    psudoas (i.e. /execute as <target> run psudoasop <command>) but if the command is a plugin command, the target will
+    bypass its permissions set to plugin.yml. If the plugin command checks permissions inside onCommand method, then
+    psudoasop will fail if the sender hasn't the permissions and I can't do anything for this, developers should know
+    how to link permissions to a command. Be careful with psudoasop, timings don't work for now.
+
     Don't forget to use psudouuid with mobs to replace the selector by the uuid and not a poor "pig", even with @s !
 
     Partially based on the other fork https://github.com/Numa-Lab/PsudoCommands
 
 1.0.28
-    Drop support for 1.12- and 1.12- parameters.
+    Drop support for both 1.12- versions and 1.12- parameters.
     Selectors are now exactly those from vanilla commands.
 
 1.0.27

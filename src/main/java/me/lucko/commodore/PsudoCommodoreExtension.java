@@ -2,37 +2,32 @@ package me.lucko.commodore;
 
 import com.google.common.base.Preconditions;
 import com.mojang.brigadier.StringReader;
+import org.apache.commons.lang.StringUtils;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
-import org.bukkit.command.CommandSender;
+import org.bukkit.command.*;
 import org.bukkit.entity.Entity;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 
 public class PsudoCommodoreExtension {
 
     private static final Method GET_ENTITY_METHOD, // Spigot: CommandListenerWrapper#getEntity(), Mojang: CommandSourceStack#getEntity()
                                 GET_BUKKIT_SENDER_METHOD, // CraftBukkit: ICommandListener#getBukkiSender(CommandListenerWrapper) (Mojang class: CommandSource)
                                 GET_BUKKIT_BASED_SENDER_METHOD; // CraftBukkit: CommandListenerWrapper#getBukkiSender() (Mojang class: CommandSourceStack)
-
     private static final Method ENTITY_ARGUMENT_ENTITIES_METHOD, // Spigot: ArgumentEntity#multipleEntities(), Mojang: EntityArgument#entities()
                                 ENTITY_ARGUMENT_PARSE_METHOD; // Spigot: ArgumentEntity#a(StringReader, boolean), Mojang: EntityArgument#parse(StringReader arg0) (boolean added by CraftBukkit)
-
     private static final Method ENTITY_SELECTOR_FIND_ENTITIES_METHOD; // Spigot: EntitySelector#getEntities(CommandListenerWrapper), Mojang: EntitySelector#findEntities(CommandSourceStack)
-
     private static final Method GET_BUKKIT_LOCATION_METHOD; // Paper method from CommandListenerWrapper (mojang: CommandSourceStack)
-
     private static final Method LOCAL_COORD_GET_POSITION_METHOD; // Spigot: ArgumentVectorPosition#a(CommandListenerWrapper), Mojang: LocalCoordinates#getPosition(CommandSourceStack)
-
     private static final Constructor<?> LOCAL_COORD_CONSTRUCTOR;
-
     private static final Method GET_X, GET_Y, GET_Z;
-
     private static final Method GET_LISTENER;
+    private static final Method GET_COMMAND_MAP_METHOD;
+    private static final Method GET_KNOW_COMMANDS_METHOD;
 
     static {
         try {
@@ -43,6 +38,8 @@ public class PsudoCommodoreExtension {
             Class<?> localCoordinates;
             Class<?> vec3;
             Class<?> vanillaCommandWrapper;
+            Class<?> craftServer;
+            Class<?> craftCommandMap;
             if (ReflectionUtil.minecraftVersion() > 16) {
                 commandListenerWrapper = ReflectionUtil.mcClass("commands.CommandListenerWrapper");
                 commandListener = ReflectionUtil.mcClass("commands.ICommandListener");
@@ -51,6 +48,7 @@ public class PsudoCommodoreExtension {
                 localCoordinates = ReflectionUtil.mcClass("commands.arguments.coordinates.ArgumentVectorPosition");
                 vec3 = ReflectionUtil.mcClass("world.phys.Vec3D");
                 vanillaCommandWrapper = ReflectionUtil.obcClass("command.VanillaCommandWrapper");
+                craftCommandMap = ReflectionUtil.obcClass("command.CraftCommandMap");
             } else {
                 commandListenerWrapper = ReflectionUtil.nmsClass("CommandListenerWrapper");
                 commandListener = ReflectionUtil.nmsClass("ICommandListener");
@@ -59,7 +57,9 @@ public class PsudoCommodoreExtension {
                 localCoordinates = ReflectionUtil.nmsClass("ArgumentVectorPosition");
                 vec3 = ReflectionUtil.mcClass("Vec3D");
                 vanillaCommandWrapper = ReflectionUtil.obcClass("VanillaCommandWrapper");
+                craftCommandMap = ReflectionUtil.obcClass("CraftCommandMap");
             }
+            craftServer = ReflectionUtil.obcClass("CraftServer");
 
             // separate obfuscated names
             if (ReflectionUtil.minecraftVersion() >= 19) {
@@ -92,6 +92,9 @@ public class PsudoCommodoreExtension {
             LOCAL_COORD_CONSTRUCTOR = localCoordinates.getConstructor(double.class, double.class, double.class);
             GET_LISTENER = vanillaCommandWrapper.getDeclaredMethod("getListener", CommandSender.class);
 
+            GET_KNOW_COMMANDS_METHOD = craftCommandMap.getDeclaredMethod("getKnownCommands");
+            GET_COMMAND_MAP_METHOD = craftServer.getDeclaredMethod("getCommandMap");
+
             GET_ENTITY_METHOD.setAccessible(true);
             LOCAL_COORD_CONSTRUCTOR.setAccessible(true);
             GET_LISTENER.setAccessible(true);
@@ -105,6 +108,9 @@ public class PsudoCommodoreExtension {
             GET_BUKKIT_BASED_SENDER_METHOD.setAccessible(true);
             GET_BUKKIT_SENDER_METHOD.setAccessible(true);
             ENTITY_ARGUMENT_PARSE_METHOD.setAccessible(true);
+
+            GET_COMMAND_MAP_METHOD.setAccessible(true);
+            GET_KNOW_COMMANDS_METHOD.setAccessible(true);
         } catch (ReflectiveOperationException e) {
             throw new ExceptionInInitializerError(e);
         }
@@ -191,6 +197,65 @@ public class PsudoCommodoreExtension {
             return GET_LISTENER.invoke(null, sender);
         } catch (IllegalAccessException | InvocationTargetException e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    public static Map<String, Command> getKnownCommands() {
+        try {
+            Object craftCommandMap = GET_COMMAND_MAP_METHOD.invoke(Bukkit.getServer());
+            return (Map<String, Command>) GET_KNOW_COMMANDS_METHOD.invoke(craftCommandMap);
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static boolean dispatchCommandIgnorePerms(CommandSender sender, String commandstr) {
+        String[] args = StringUtils.split(commandstr, ' ');
+        if (args.length == 0) {
+            return false;
+        }
+        String sentCommandLabel = args[0].toLowerCase(java.util.Locale.ENGLISH);
+        Command command = getKnownCommands().get(sentCommandLabel.toLowerCase(java.util.Locale.ENGLISH));
+        if (command == null) {
+            return false;
+        }
+
+        try {
+            //if (command.timings != null) command.timings.startTiming();
+            executeIgnorePerms(command, sender, sentCommandLabel, Arrays.copyOfRange(args, 1, args.length));
+            //if (command.timings != null) command.timings.stopTiming();
+        } catch (CommandException ex) {
+            //if (command.timings != null) command.timings.stopTiming();
+            throw ex;
+        } catch (Throwable ex) {
+            String msg = "Unhandled exception executing '" + commandstr + "' in " + command;
+            //if (command.timings != null) command.timings.stopTiming();
+            throw new CommandException(msg, ex) ;
+        }
+        return true;
+    }
+
+    private static boolean executeIgnorePerms(Command command, CommandSender sender, String label, String[] args) {
+        if (command instanceof PluginCommand) {
+            PluginCommand pluginCommand = (PluginCommand) command;
+            boolean success;
+            if (!pluginCommand.getPlugin().isEnabled()) {
+                throw new CommandException("Cannot execute command '" + label + "' in plugin " + pluginCommand.getPlugin().getDescription().getFullName() + " - plugin is disabled.");
+            }
+            try {
+                success = pluginCommand.getExecutor().onCommand(sender, pluginCommand, label, args);
+            } catch (Throwable ex) {
+                throw new CommandException("Unhandled exception executing command '" + label + "' in plugin " + pluginCommand.getPlugin().getDescription().getFullName(), ex);
+            }
+            if (!success && pluginCommand.getUsage().length() > 0) {
+                for (String line : pluginCommand.getUsage().replace("<command>", label).split("\n")) {
+                    sender.sendMessage(line);
+                }
+            }
+            return success;
+        } else {
+            // don't check VanillaCommandWrapper type because we can ignore psudo and use vanilla behavior
+            return command.execute(sender, label, args);
         }
     }
 }
