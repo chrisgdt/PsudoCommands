@@ -5,41 +5,47 @@ import com.mojang.brigadier.StringReader;
 import org.apache.commons.lang.StringUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.World;
 import org.bukkit.command.*;
 import org.bukkit.entity.Entity;
 
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.*;
 
 public class PsudoCommodoreExtension {
 
-    private static final Method GET_ENTITY_METHOD, // Spigot: CommandListenerWrapper#getEntity(), Mojang: CommandSourceStack#getEntity()
-                                GET_BUKKIT_SENDER_METHOD, // CraftBukkit: ICommandListener#getBukkiSender(CommandListenerWrapper) (Mojang class: CommandSource)
-                                GET_BUKKIT_BASED_SENDER_METHOD; // CraftBukkit: CommandListenerWrapper#getBukkiSender() (Mojang class: CommandSourceStack)
-    private static final Method ENTITY_ARGUMENT_ENTITIES_METHOD, // Spigot: ArgumentEntity#multipleEntities(), Mojang: EntityArgument#entities()
-                                ENTITY_ARGUMENT_PARSE_METHOD; // Spigot: ArgumentEntity#a(StringReader, boolean), Mojang: EntityArgument#parse(StringReader arg0) (boolean added by CraftBukkit)
+    // CLASS NAME : Spigot: CommandListenerWrapper, Mojang: CommandSourceStack
+    private static final Method GET_ENTITY_METHOD, // Method getEntity() (for both Spigot and Mojang)
+                                GET_BUKKIT_BASED_SENDER_METHOD, // CraftBukkit method: getBukkitSender()
+                                GET_BUKKIT_LOCATION_METHOD, // Paper method: getBukkitLocation()
+                                GET_POSITION, GET_LEVEL, GET_ROTATION; // if getBukkitLocation is found, these three methods are null
+
+    private static final Method GET_BUKKIT_SENDER_METHOD; // CraftBukkit method ICommandListener#getBukkitSender(), Mojang class name : CommandSource
+
+    // CLASS NAME : Spigot: ArgumentEntity, Mojang: EntityArgument
+    static final Method ENTITY_ARGUMENT_ENTITIES_METHOD, // Spigot: multipleEntities(), Mojang: entities()
+                        ENTITY_ARGUMENT_PARSE_METHOD; // Spigot: a(StringReader, boolean), Mojang: parse(StringReader arg0) (boolean added by CraftBukkit)
+
     private static final Method ENTITY_SELECTOR_FIND_ENTITIES_METHOD; // Spigot: EntitySelector#getEntities(CommandListenerWrapper), Mojang: EntitySelector#findEntities(CommandSourceStack)
-    private static final Method GET_BUKKIT_LOCATION_METHOD; // Paper method from CommandListenerWrapper (mojang: CommandSourceStack)
     private static final Method LOCAL_COORD_GET_POSITION_METHOD; // Spigot: ArgumentVectorPosition#a(CommandListenerWrapper), Mojang: LocalCoordinates#getPosition(CommandSourceStack)
+    private static final Method GET_X, GET_Y, GET_Z; // Spigot: Vec3D#a(), Mojang: Vec3#getX()
+    private static final Method GET_COMMAND_MAP_METHOD; // craftbukkit package: CraftServer#getCommandMap()
+    private static final Method GET_KNOW_COMMANDS_METHOD; // craftbukkit package: CraftCommandMap#getKnownCommand()
+    private static final Method GET_LISTENER; // craftbukkit package: VanillaCommandWrapper#getListener(CommandSender)
+
     private static final Constructor<?> LOCAL_COORD_CONSTRUCTOR;
-    private static final Method GET_X, GET_Y, GET_Z;
-    private static final Method GET_LISTENER;
-    private static final Method GET_COMMAND_MAP_METHOD;
-    private static final Method GET_KNOW_COMMANDS_METHOD;
+
+    private static final Method SERVER_LEVEL_GET_WORLD; // craftbukkit method ServerLevel#getWorld(), null if getBukkitLocation is found
+    private static final Field X, Y; // craftbukkit method ServerLevel#getWorld(), null if getBukkitLocation is found
+
 
     static {
         try {
-            Class<?> commandListenerWrapper;
-            Class<?> commandListener;
-            Class<?> argumentEntity;
-            Class<?> entitySelector;
-            Class<?> localCoordinates;
-            Class<?> vec3;
-            Class<?> vanillaCommandWrapper;
-            Class<?> craftServer;
-            Class<?> craftCommandMap;
+            Class<?> commandListenerWrapper, commandListener, argumentEntity, entitySelector,
+                    localCoordinates, vec3;
             if (ReflectionUtil.minecraftVersion() > 16) {
                 commandListenerWrapper = ReflectionUtil.mcClass("commands.CommandListenerWrapper");
                 commandListener = ReflectionUtil.mcClass("commands.ICommandListener");
@@ -47,73 +53,100 @@ public class PsudoCommodoreExtension {
                 entitySelector = ReflectionUtil.mcClass("commands.arguments.selector.EntitySelector");
                 localCoordinates = ReflectionUtil.mcClass("commands.arguments.coordinates.ArgumentVectorPosition");
                 vec3 = ReflectionUtil.mcClass("world.phys.Vec3D");
-                vanillaCommandWrapper = ReflectionUtil.obcClass("command.VanillaCommandWrapper");
-                craftCommandMap = ReflectionUtil.obcClass("command.CraftCommandMap");
             } else {
                 commandListenerWrapper = ReflectionUtil.nmsClass("CommandListenerWrapper");
                 commandListener = ReflectionUtil.nmsClass("ICommandListener");
                 argumentEntity = ReflectionUtil.nmsClass("ArgumentEntity");
                 entitySelector = ReflectionUtil.nmsClass("EntitySelector");
                 localCoordinates = ReflectionUtil.nmsClass("ArgumentVectorPosition");
-                vec3 = ReflectionUtil.mcClass("Vec3D");
-                vanillaCommandWrapper = ReflectionUtil.obcClass("VanillaCommandWrapper");
-                craftCommandMap = ReflectionUtil.obcClass("CraftCommandMap");
+                vec3 = ReflectionUtil.nmsClass("Vec3D");
             }
-            craftServer = ReflectionUtil.obcClass("CraftServer");
+            Class<?> vanillaCommandWrapper = ReflectionUtil.obcClass("command.VanillaCommandWrapper");
+            Class<?> craftCommandMap = ReflectionUtil.obcClass("command.CraftCommandMap");
+            Class<?> craftServer = ReflectionUtil.obcClass("CraftServer");
 
-            // separate obfuscated names
+            // distinct obfuscated names
             if (ReflectionUtil.minecraftVersion() >= 19) {
-                GET_ENTITY_METHOD = commandListenerWrapper.getDeclaredMethod("g");
+                GET_ENTITY_METHOD = getMethod(commandListenerWrapper, "g");
             } else if (ReflectionUtil.minecraftVersion() == 18) {
-                GET_ENTITY_METHOD = commandListenerWrapper.getDeclaredMethod("f");
+                GET_ENTITY_METHOD = getMethod(commandListenerWrapper, "f");
             } else {
-                GET_ENTITY_METHOD = commandListenerWrapper.getDeclaredMethod("getEntity");
+                GET_ENTITY_METHOD = getMethod(commandListenerWrapper, "getEntity");
             }
             // same obfuscated names
             if (ReflectionUtil.minecraftVersion() > 17) {
-                ENTITY_ARGUMENT_ENTITIES_METHOD = argumentEntity.getDeclaredMethod("b");
-                ENTITY_SELECTOR_FIND_ENTITIES_METHOD = entitySelector.getDeclaredMethod("b", commandListenerWrapper);
-                GET_X = vec3.getDeclaredMethod("a");
-                GET_Y = vec3.getDeclaredMethod("b");
-                GET_Z = vec3.getDeclaredMethod("c");
+                ENTITY_ARGUMENT_ENTITIES_METHOD = getMethod(argumentEntity, "b");
+                ENTITY_SELECTOR_FIND_ENTITIES_METHOD = getMethod(entitySelector, "b", commandListenerWrapper);
+                GET_X = getMethod(vec3, "a");
+                GET_Y = getMethod(vec3, "b");
+                GET_Z = getMethod(vec3, "c");
             } else {
                 ENTITY_ARGUMENT_ENTITIES_METHOD = argumentEntity.getDeclaredMethod("multipleEntities");
                 ENTITY_SELECTOR_FIND_ENTITIES_METHOD = entitySelector.getDeclaredMethod("getEntities", commandListenerWrapper);
-                GET_X = vec3.getDeclaredMethod("getX");
-                GET_Y = vec3.getDeclaredMethod("getY");
-                GET_Z = vec3.getDeclaredMethod("getZ");
+                GET_X = getMethod(vec3, "getX");
+                GET_Y = getMethod(vec3, "getY");
+                GET_Z = getMethod(vec3, "getZ");
             }
+            LOCAL_COORD_GET_POSITION_METHOD = getMethod(localCoordinates, "a", commandListenerWrapper);
+            ENTITY_ARGUMENT_PARSE_METHOD = getMethod(argumentEntity, "parse", StringReader.class, boolean.class); // craftbukkit method (without boolean, obf name is a)
+            GET_BUKKIT_SENDER_METHOD = getMethod(commandListener, "getBukkitSender", commandListenerWrapper); // craftbukkit method
+            GET_BUKKIT_BASED_SENDER_METHOD = getMethod(commandListenerWrapper, "getBukkitSender"); // craftbukkit method
+            GET_LISTENER = getMethod(vanillaCommandWrapper, "getListener", CommandSender.class); // not NMS, craftbukkit package
+            GET_KNOW_COMMANDS_METHOD = getMethod(craftCommandMap, "getKnownCommands"); // not NMS, craftbukkit package
+            GET_COMMAND_MAP_METHOD = getMethod(craftServer, "getCommandMap");
 
-            ENTITY_ARGUMENT_PARSE_METHOD = argumentEntity.getDeclaredMethod("parse", StringReader.class, boolean.class); // craftbukkit method (without boolean, obf name is a)
-            GET_BUKKIT_SENDER_METHOD = commandListener.getDeclaredMethod("getBukkitSender", commandListenerWrapper); // craftbukkit method
-            GET_BUKKIT_BASED_SENDER_METHOD = commandListenerWrapper.getDeclaredMethod("getBukkitSender"); // craftbukkit method
-            GET_BUKKIT_LOCATION_METHOD = commandListenerWrapper.getDeclaredMethod("getBukkitLocation"); // Paper method
-            LOCAL_COORD_GET_POSITION_METHOD = localCoordinates.getMethod("a", commandListenerWrapper);
             LOCAL_COORD_CONSTRUCTOR = localCoordinates.getConstructor(double.class, double.class, double.class);
-            GET_LISTENER = vanillaCommandWrapper.getDeclaredMethod("getListener", CommandSender.class);
-
-            GET_KNOW_COMMANDS_METHOD = craftCommandMap.getDeclaredMethod("getKnownCommands");
-            GET_COMMAND_MAP_METHOD = craftServer.getDeclaredMethod("getCommandMap");
-
-            GET_ENTITY_METHOD.setAccessible(true);
             LOCAL_COORD_CONSTRUCTOR.setAccessible(true);
-            GET_LISTENER.setAccessible(true);
-            ENTITY_ARGUMENT_ENTITIES_METHOD.setAccessible(true);
-            ENTITY_SELECTOR_FIND_ENTITIES_METHOD.setAccessible(true);
-            GET_X.setAccessible(true);
-            GET_Y.setAccessible(true);
-            GET_Z.setAccessible(true);
-            GET_BUKKIT_LOCATION_METHOD.setAccessible(true);
-            LOCAL_COORD_GET_POSITION_METHOD.setAccessible(true);
-            GET_BUKKIT_BASED_SENDER_METHOD.setAccessible(true);
-            GET_BUKKIT_SENDER_METHOD.setAccessible(true);
-            ENTITY_ARGUMENT_PARSE_METHOD.setAccessible(true);
 
-            GET_COMMAND_MAP_METHOD.setAccessible(true);
-            GET_KNOW_COMMANDS_METHOD.setAccessible(true);
+            // If getBukkitLocation doesn't exist (i.e. server is not running on Paper), use obfuscated methods
+            if (Arrays.stream(commandListenerWrapper.getDeclaredMethods())
+                    .map(Method::getName)
+                    .anyMatch(m -> m.equals("getBukkitLocation"))) {
+                GET_BUKKIT_LOCATION_METHOD = getMethod(commandListenerWrapper, "getBukkitLocation"); // Paper method
+                GET_POSITION = null;
+                GET_LEVEL = null;
+                GET_ROTATION = null;
+                SERVER_LEVEL_GET_WORLD = null;
+                X = null;
+                Y = null;
+            } else {
+                GET_BUKKIT_LOCATION_METHOD = null;
+                Class<?> level, vec2;
+                if (ReflectionUtil.minecraftVersion() > 16) {
+                    level = ReflectionUtil.mcClass("world.level.World");
+                    vec2 = ReflectionUtil.mcClass("world.phys.Vec2F");
+                } else {
+                    level = ReflectionUtil.nmsClass("World");
+                    vec2 = ReflectionUtil.nmsClass("Vec2F");
+                }
+                SERVER_LEVEL_GET_WORLD = getMethod(level, "getWorld");
+                X = vec2.getDeclaredField("i");
+                Y = vec2.getDeclaredField("j");
+                X.setAccessible(true);
+                Y.setAccessible(true);
+                if (ReflectionUtil.minecraftVersion() >= 19) {
+                    GET_POSITION = getMethod(commandListenerWrapper, "e");
+                    GET_LEVEL = getMethod(commandListenerWrapper, "f");
+                    GET_ROTATION = getMethod(commandListenerWrapper, "l");
+                } else if (ReflectionUtil.minecraftVersion() == 18) {
+                    GET_POSITION = getMethod(commandListenerWrapper, "d");
+                    GET_LEVEL = getMethod(commandListenerWrapper, "e");
+                    GET_ROTATION = getMethod(commandListenerWrapper, "i");
+                } else {
+                    GET_POSITION = getMethod(commandListenerWrapper, "getPosition");
+                    GET_LEVEL = getMethod(commandListenerWrapper, "getWorld");
+                    GET_ROTATION = getMethod(commandListenerWrapper, "i");
+                }
+            }
         } catch (ReflectiveOperationException e) {
             throw new ExceptionInInitializerError(e);
         }
+    }
+
+    private static Method getMethod(Class<?> clazz, String name, Class<?>... params) throws NoSuchMethodException {
+        Method method = clazz.getDeclaredMethod(name, params);
+        method.setAccessible(true);
+        return method;
     }
 
     public static CommandSender getBukkitSender(Object commandWrapperListener) {
@@ -145,9 +178,21 @@ public class PsudoCommodoreExtension {
         Objects.requireNonNull(commandWrapperListener, "commandWrapperListener");
 
         try {
-            // problem with local coordinates that does not work because pos has nul yaw & pitch. We use local coordinates
-            // with the commandWrapperListener (cf. getLocalCoord) to avoid to get rotation and anchor by hand.
-            return (Location) GET_BUKKIT_LOCATION_METHOD.invoke(commandWrapperListener);
+            if (GET_BUKKIT_LOCATION_METHOD != null) {
+                // problem with local coordinates that does not work because pos has nul yaw & pitch. We use local coordinates
+                // with the commandWrapperListener (cf. getLocalCoord) to avoid to get rotation and anchor by hand.
+                return (Location) GET_BUKKIT_LOCATION_METHOD.invoke(commandWrapperListener);
+            } else {
+                World world = (World) SERVER_LEVEL_GET_WORLD.invoke(GET_LEVEL.invoke(commandWrapperListener));
+                Object pos = GET_POSITION.invoke(commandWrapperListener);
+                Object rot = GET_ROTATION.invoke(commandWrapperListener);
+                if (world == null || pos == null) {
+                    return null;
+                }
+                float yaw = rot != null ? (float) X.get(rot) : 0;
+                float pitch = rot != null ? (float) Y.get(rot) : 0;
+                return new Location(world, (double) GET_X.invoke(pos), (double) GET_Y.invoke(pos), (double) GET_Z.invoke(pos), yaw, pitch);
+            }
         } catch (ReflectiveOperationException e) {
             throw new RuntimeException(e);
         }

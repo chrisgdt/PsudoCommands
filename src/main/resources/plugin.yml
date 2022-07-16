@@ -1,7 +1,7 @@
 main: me.zombie_striker.psudocommands.PsudoCommands
 version: ${project.version}
 name: PsudoCommand
-api-version: 1.16
+api-version: 1.14
 authors:
   - Zombie_Striker (original author)
   - cricri_21 (lot of fixes and completion)
