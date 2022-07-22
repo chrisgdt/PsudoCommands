@@ -2,6 +2,7 @@ package me.lucko.commodore;
 
 import com.google.common.base.Preconditions;
 import com.mojang.brigadier.StringReader;
+import me.zombie_striker.psudocommands.DispatchCommandPaperHook;
 import org.apache.commons.lang.StringUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -16,6 +17,8 @@ import java.lang.reflect.Method;
 import java.util.*;
 
 public class PsudoCommodoreExtension {
+
+    private static final boolean PAPER;
 
     // CLASS NAME : Spigot: CommandListenerWrapper, Mojang: CommandSourceStack
     private static final Method GET_ENTITY_METHOD, // Method getEntity() (for both Spigot and Mojang)
@@ -40,7 +43,6 @@ public class PsudoCommodoreExtension {
 
     private static final Method SERVER_LEVEL_GET_WORLD; // craftbukkit method ServerLevel#getWorld(), null if getBukkitLocation is found
     private static final Field X, Y; // craftbukkit method ServerLevel#getWorld(), null if getBukkitLocation is found
-
 
     static {
         try {
@@ -99,9 +101,11 @@ public class PsudoCommodoreExtension {
             LOCAL_COORD_CONSTRUCTOR.setAccessible(true);
 
             // If getBukkitLocation doesn't exist (i.e. server is not running on Paper), use obfuscated methods
-            if (Arrays.stream(commandListenerWrapper.getDeclaredMethods())
+            PAPER = Arrays.stream(commandListenerWrapper.getDeclaredMethods())
                     .map(Method::getName)
-                    .anyMatch(m -> m.equals("getBukkitLocation"))) {
+                    .anyMatch(m -> m.equals("getBukkitLocation"));
+
+            if (PAPER) {
                 GET_BUKKIT_LOCATION_METHOD = getMethod(commandListenerWrapper, "getBukkitLocation"); // Paper method
                 GET_POSITION = null;
                 GET_LEVEL = null;
@@ -178,7 +182,7 @@ public class PsudoCommodoreExtension {
         Objects.requireNonNull(commandWrapperListener, "commandWrapperListener");
 
         try {
-            if (GET_BUKKIT_LOCATION_METHOD != null) {
+            if (PAPER) {
                 // problem with local coordinates that does not work because pos has nul yaw & pitch. We use local coordinates
                 // with the commandWrapperListener (cf. getLocalCoord) to avoid to get rotation and anchor by hand.
                 return (Location) GET_BUKKIT_LOCATION_METHOD.invoke(commandWrapperListener);
@@ -265,22 +269,25 @@ public class PsudoCommodoreExtension {
             return false;
         }
 
-        try {
-            //if (command.timings != null) command.timings.startTiming();
-            executeIgnorePerms(command, sender, sentCommandLabel, Arrays.copyOfRange(args, 1, args.length));
-            //if (command.timings != null) command.timings.stopTiming();
-        } catch (CommandException ex) {
-            //if (command.timings != null) command.timings.stopTiming();
-            throw ex;
-        } catch (Throwable ex) {
-            String msg = "Unhandled exception executing '" + commandstr + "' in " + command;
-            //if (command.timings != null) command.timings.stopTiming();
-            throw new CommandException(msg, ex) ;
+        if (PAPER) {
+            DispatchCommandPaperHook.dispatchCommandPaper(sender, commandstr, command, sentCommandLabel, args);
+        } else {
+            try {
+                //command.timings.startTiming();
+                executeIgnorePerms(command, sender, sentCommandLabel, Arrays.copyOfRange(args, 1, args.length));
+                //command.timings.stopTiming();
+            } catch (CommandException ex) {
+                //command.timings.stopTiming();
+                throw ex;
+            } catch (Throwable ex) {
+                //command.timings.stopTiming();
+                throw new CommandException("Unhandled exception executing '" + commandstr + "' in " + command, ex);
+            }
         }
         return true;
     }
 
-    private static boolean executeIgnorePerms(Command command, CommandSender sender, String label, String[] args) {
+    public static boolean executeIgnorePerms(Command command, CommandSender sender, String label, String[] args) {
         if (command instanceof PluginCommand) {
             PluginCommand pluginCommand = (PluginCommand) command;
             boolean success;
