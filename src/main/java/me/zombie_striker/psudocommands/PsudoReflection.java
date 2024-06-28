@@ -15,7 +15,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.*;
 
-// https://mappings.cephx.dev/1.20.4/net/minecraft/commands/CommandSourceStack.html
+// https://mappings.cephx.dev/1.21/net/minecraft/commands/CommandSourceStack.html
 public class PsudoReflection {
 
     private static final boolean PAPER;
@@ -49,12 +49,11 @@ public class PsudoReflection {
     private static final Field X, Y; // x and y fields of Vec2 class
 
     static {
-        // org.bukkit.craftbukkit.v1_17_R1
-        String[] versions = Bukkit.getServer().getClass().getPackage().getName().split("\\.")[3].substring(1).split("_");
+        // Have to change version because they've updated Bukkit.getServer().getClass().getPackage().getName() and old method no longer works
+        String[] versions = Bukkit.getServer().getMinecraftVersion().split("\\."); // 1.17.1
         int version = Integer.parseInt(versions[1]);
         int versionMinor;
         if (version >= 17) {
-            // 1.17.1-R0.1-SNAPSHOT
             versions = Bukkit.getBukkitVersion().split("-R")[0].split("\\.");
             versionMinor = versions.length <= 2 ? 0 : Integer.parseInt(versions[2]);
         } else {
@@ -87,10 +86,14 @@ public class PsudoReflection {
             Class<?> craftCommandMap = ReflectionUtil.obcClass("command.CraftCommandMap");
             Class<?> craftServer = ReflectionUtil.obcClass("CraftServer");
 
-            // distinct obfuscated names
-            if (version >= 20) {
+            if (version >= 21) {
+                GET_ENTITY_METHOD = getMethod(commandListenerWrapper, "f");
+                GET_COMMANDS_DISPATCHER = getMethod(minecraftServer, "aH");
+            }
+            else if (version == 20) {
                 GET_ENTITY_METHOD = getMethod(commandListenerWrapper, "f");
                 if (versionMinor <= 2) GET_COMMANDS_DISPATCHER = getMethod(minecraftServer, "aC");
+                else if (versionMinor == 6) GET_COMMANDS_DISPATCHER = getMethod(minecraftServer, "aH");
                 else GET_COMMANDS_DISPATCHER = getMethod(minecraftServer, "aE");
             } else if (version == 19) {
                 GET_ENTITY_METHOD = getMethod(commandListenerWrapper, versionMinor <= 2 ? "g" : "f");
