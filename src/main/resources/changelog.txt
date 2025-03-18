@@ -1,3 +1,6 @@
+1.038
+    Update 1.21.4 and fix 1.21.
+
 1.0.37
     Fix Brigadier usage for Paper 1.20.4+, for e.g. psudoas not dispatching properly as the sender.
 
