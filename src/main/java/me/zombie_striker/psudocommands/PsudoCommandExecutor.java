@@ -120,7 +120,8 @@ public class PsudoCommandExecutor implements CommandExecutor, TabCompleter {
                             selectedEntities = PsudoReflection.selectEntities(commandWrapperListener, args[i]); // separate "at" and "as" with wrapper
                         } catch (IllegalArgumentException e) {
                             baseSender.sendMessage(ChatColor.RED + e.getMessage());
-                            baseSender.sendMessage(ChatColor.RED + e.getCause().getMessage());
+                            baseSender.sendMessage(ChatColor.RED + "> " + e.getCause());
+                            if (e.getCause() != null) baseSender.sendMessage(ChatColor.RED + e.getCause().getMessage());
                             return false;
                         }
                         for (int j = 1; j < selectedEntities.size(); j++) {

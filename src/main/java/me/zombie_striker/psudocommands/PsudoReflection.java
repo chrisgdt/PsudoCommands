@@ -32,7 +32,7 @@ public class PsudoReflection {
 
     // CLASS NAME : Spigot: ArgumentEntity, Mojang: EntityArgument
     static final Method ENTITY_ARGUMENT_ENTITIES_METHOD, // Spigot: multipleEntities(), Mojang: entities()
-                        ENTITY_ARGUMENT_PARSE_METHOD; // Spigot: a(StringReader, boolean), Mojang: parse(StringReader arg0) (boolean added by CraftBukkit)
+                        ENTITY_ARGUMENT_PARSE_METHOD; // Spigot: a(StringReader, boolean), Mojang: parse(StringReader arg0) (boolean added by CraftBukkit, then natively in 1.21.1)
 
     static final Method GET_COMMANDS_DISPATCHER, // Spigot : MinecraftServer#getCommandDispatcher(), Mojang : MinecraftServer#getCommands()
                         GET_DISPATCHER; // Spigot : CommandDispatcher#a(), Mojang : Commands#getDispatcher()
@@ -44,11 +44,13 @@ public class PsudoReflection {
     private static final Method GET_KNOW_COMMANDS_METHOD; // craftbukkit package: CraftCommandMap#getKnownCommand()
     private static final Method GET_LISTENER; // craftbukkit package: VanillaCommandWrapper#getListener(CommandSender)
     private static final Method GET_SERVER; // craftbukkit package: CraftServer#getServer()
+    private static final Method SERVER_PLAYER_COMMAND_SOURCE; // CommandSource net.minecraft.server.level.ServerPlayer#commandSource(), only used from 1.21.3
 
     private static final Constructor<?> LOCAL_COORD_CONSTRUCTOR;
 
     private static final Method SERVER_LEVEL_GET_WORLD; // craftbukkit method ServerLevel#getWorld(), null if getBukkitLocation is found
     private static final Field X, Y; // x and y fields of Vec2 class
+    private static final Field ENTITY_COMMAND_SOURCE; // CommandSource field from net.minecraft.world.entity.Entity, only used from 1.21.3
 
     static {
         // Example value of getBukkitVersion: 1.20.1-R0.1-SNAPSHOT
@@ -57,7 +59,7 @@ public class PsudoReflection {
         VERSION_MINOR = versions.length == 2 ? 0 : Integer.parseInt(versions[2]);
         try {
             Class<?> commandListenerWrapper, commandListener, argumentEntity, entitySelector,
-                    localCoordinates, vec3, minecraftServer, commands;
+                    localCoordinates, vec3, minecraftServer, commands, serverPlayerClass, entityClass;
             if (ReflectionUtil.minecraftVersion() > 16) {
                 commandListenerWrapper = ReflectionUtil.mcClass("commands.CommandListenerWrapper");
                 commandListener = ReflectionUtil.mcClass("commands.ICommandListener");
@@ -67,6 +69,8 @@ public class PsudoReflection {
                 vec3 = ReflectionUtil.mcClass("world.phys.Vec3D");
                 minecraftServer = ReflectionUtil.mcClass("server.MinecraftServer");
                 commands = ReflectionUtil.mcClass("commands.CommandDispatcher");
+                serverPlayerClass = ReflectionUtil.mcClass("server.level.EntityPlayer");
+                entityClass = ReflectionUtil.mcClass("world.entity.Entity");
             } else {
                 commandListenerWrapper = ReflectionUtil.nmsClass("CommandListenerWrapper");
                 commandListener = ReflectionUtil.nmsClass("ICommandListener");
@@ -76,6 +80,8 @@ public class PsudoReflection {
                 vec3 = ReflectionUtil.nmsClass("Vec3D");
                 minecraftServer = ReflectionUtil.nmsClass("MinecraftServer");
                 commands = ReflectionUtil.nmsClass("CommandDispatcher");
+                serverPlayerClass = null;
+                entityClass = null;
             }
             Class<?> vanillaCommandWrapper = ReflectionUtil.obcClass("command.VanillaCommandWrapper");
             Class<?> craftCommandMap = ReflectionUtil.obcClass("command.CraftCommandMap");
@@ -84,7 +90,8 @@ public class PsudoReflection {
             // distinct obfuscated names
             if (VERSION >= 21) {
                 GET_ENTITY_METHOD = getMethod(commandListenerWrapper, "f");
-                GET_COMMANDS_DISPATCHER = getMethod(minecraftServer, "aH");
+                if (VERSION == 21 && VERSION_MINOR <= 2) GET_COMMANDS_DISPATCHER = getMethod(minecraftServer, "aH");
+                else GET_COMMANDS_DISPATCHER = getMethod(minecraftServer, "aG");
             } else if (VERSION == 20) {
                 GET_ENTITY_METHOD = getMethod(commandListenerWrapper, "f");
                 if (VERSION_MINOR <= 2) GET_COMMANDS_DISPATCHER = getMethod(minecraftServer, "aC");
@@ -100,6 +107,7 @@ public class PsudoReflection {
                 GET_ENTITY_METHOD = getMethod(commandListenerWrapper, "getEntity");
                 GET_COMMANDS_DISPATCHER = getMethod(minecraftServer, "getCommandDispatcher");
             }
+
             // same obfuscated names
             if (VERSION > 17) {
                 ENTITY_ARGUMENT_ENTITIES_METHOD = getMethod(argumentEntity, "b");
@@ -114,6 +122,16 @@ public class PsudoReflection {
                 GET_Y = getMethod(vec3, "getY");
                 GET_Z = getMethod(vec3, "getZ");
             }
+
+            if (!runningBelowVersion("1.21.2")) {
+                SERVER_PLAYER_COMMAND_SOURCE = getMethod(serverPlayerClass, "z");
+                ENTITY_COMMAND_SOURCE = entityClass.getDeclaredField("commandSource");
+                ENTITY_COMMAND_SOURCE.setAccessible(true);
+            } else {
+                SERVER_PLAYER_COMMAND_SOURCE = null; // Only needed in 1.21.3+
+                ENTITY_COMMAND_SOURCE = null;
+            }
+
             LOCAL_COORD_GET_POSITION_METHOD = getMethod(localCoordinates, "a", commandListenerWrapper);
             GET_DISPATCHER = getMethod(commands, "a");
             GET_BUKKIT_SENDER_METHOD = getMethod(commandListener, "getBukkitSender", commandListenerWrapper); // craftbukkit method
@@ -145,8 +163,8 @@ public class PsudoReflection {
                 X = null;
                 Y = null;
             } else {*/
-            if (VERSION >= 21) {
-                ENTITY_ARGUMENT_PARSE_METHOD = getMethod(argumentEntity, "a", StringReader.class, boolean.class); // added natively with boolean in 1.21
+            if (!runningBelowVersion("1.21.0")) {
+                ENTITY_ARGUMENT_PARSE_METHOD = getMethod(argumentEntity, "a", StringReader.class, boolean.class); // added natively with boolean in 1.21.1
             } else {
                 ENTITY_ARGUMENT_PARSE_METHOD = getMethod(argumentEntity, "parse", StringReader.class, boolean.class); // craftbukkit method (without boolean, obf name is a)
             }
@@ -195,13 +213,7 @@ public class PsudoReflection {
         int inputVersion = Integer.parseInt(parts[1]);
         int inputVersionMinor = parts.length == 2 ? 0 : Integer.parseInt(parts[2]);
 
-        if (VERSION < inputVersion) {
-            return true;
-        } else if (VERSION > inputVersion) {
-            return false;
-        } else {
-            return VERSION_MINOR <= inputVersionMinor;
-        }
+        return VERSION < inputVersion || (VERSION == inputVersion && VERSION_MINOR <= inputVersionMinor);
     }
 
     private static Method getMethod(Class<?> clazz, String name, Class<?>... params) throws NoSuchMethodException {
@@ -214,7 +226,7 @@ public class PsudoReflection {
         try {
             Object nmsDedicatedServer = GET_SERVER.invoke(Bukkit.getServer());
             Object nmsDispatcher = GET_COMMANDS_DISPATCHER.invoke(nmsDedicatedServer);
-            return (CommandDispatcher<Object>) GET_DISPATCHER.invoke(nmsDispatcher);
+            return (CommandDispatcher<Object>) GET_DISPATCHER.invoke(nmsDispatcher); // Spigot 1.21.2 ? IllegalArgumentException: object of type net.minecraft.commands.CommandListenerWrapper is not an instance of net.minecraft.commands.CommandDispatcher
         } catch (ReflectiveOperationException e) {
             throw new RuntimeException(e);
         }
@@ -228,10 +240,31 @@ public class PsudoReflection {
             if (entity == null) {
                 return null;
             } else {
-                return (CommandSender) GET_BUKKIT_SENDER_METHOD.invoke(entity, commandWrapperListener);
+                return (CommandSender) GET_BUKKIT_SENDER_METHOD.invoke(getCommandSource(entity), commandWrapperListener);
             }
         } catch (ReflectiveOperationException e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    public static Object getCommandSource(Object entity) {
+        if (runningBelowVersion("1.21.2")) {
+            return entity;
+        } else{
+            // From 1.21.3, both net.minecraft.world.entity.Entity and net.minecraft.server.level.ServerPlayer do not
+            // extend net.minecraft.commands.CommandSource anymore. For ServerPlayer, use a public method, for Entity,
+            // get a private field.
+            Class<?> serverPlayerClass;
+            try {
+                serverPlayerClass = ReflectionUtil.mcClass("server.level.EntityPlayer");
+                if (serverPlayerClass.isInstance(entity)) {
+                    return SERVER_PLAYER_COMMAND_SOURCE.invoke(entity);
+                } else {
+                    return ENTITY_COMMAND_SOURCE.get(entity);
+                }
+            } catch (ReflectiveOperationException e) {
+                return null;
+            }
         }
     }
 
@@ -285,7 +318,7 @@ public class PsudoReflection {
 
             for (Object entity : nms) {
                 // use getBukkitSender because on entity it just returns the BukkitEntity
-                result.add((Entity) GET_BUKKIT_SENDER_METHOD.invoke(entity, commandSourceStack));
+                result.add((Entity) GET_BUKKIT_SENDER_METHOD.invoke(getCommandSource(entity), commandSourceStack));
             }
 
         } catch (IllegalAccessException | InvocationTargetException ex) {
